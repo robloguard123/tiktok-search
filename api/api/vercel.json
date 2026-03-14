@@ -1,13 +1,13 @@
 {
   "version": 2,
   "builds": [
-    { "src": "public/index.html", "use": "@vercel/static" },
-    { "src": "api/suggest.js", "use": "@vercel/node" },
-    { "src": "api/search.js", "use": "@vercel/node" }
+    { "src": "api/api/public/index.html", "use": "@vercel/static" },
+    { "src": "api/api/search.js", "use": "@vercel/node" },
+    { "src": "api/api/suggest.js", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/api/suggest", "dest": "/api/suggest.js" },
-    { "src": "/api/search", "dest": "/api/search.js" },
-    { "src": "/(.*)", "dest": "/public/index.html" }
+    { "src": "/api/suggest", "dest": "/api/api/suggest.js" },
+    { "src": "/api/search", "dest": "/api/api/search.js" },
+    { "src": "/(.*)", "dest": "/api/api/public/index.html" }
   ]
 }
