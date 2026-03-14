@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikTok 검색</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #000; color: #fff; font-family: -apple-system, 'Malgun Gothic', sans-serif; min-height: 100vh; }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; position: sticky; top: 0; background: #000; z-index: 10; border-bottom: 0.5px solid #1a1a1a; }
+  .logo { font-size: 20px; font-weight: 800; } .logo span { color: #fe2c55; }
+  .search-box { flex: 1; display: flex; align-items: center; background: #1a1a1a; border-radius: 10px; padding: 9px 14px; gap: 8px; }
+  .search-box input { flex: 1; background: none; border: none; outline: none; color: #fff; font-size: 15px; caret-color: #fe2c55; }
+  .search-box input::placeholder { color: #555; }
+  .go-btn { color: #fe2c55; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .suggest-item { display: flex; align-items: center; gap: 12px; padding: 11px 16px; cursor: pointer; border-bottom: 0.5px solid #0f0f0f; }
+  .suggest-item:hover { background: #111; }
+  .suggest-item mark { background: none; color: #fe2c55; font-weight: 600; }
+  .section-label { font-size: 12px; color: #555; padding: 14px 16px 6px; }
+  .videos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; padding: 2px; }
+  .video-card { position: relative; background: #111; cursor: pointer; aspect-ratio: 9/16; overflow: hidden; }
+  .video-card img { width: 100%; height: 100%; object-fit: cover; }
+  .video-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 8px; background: linear-gradient(transparent, rgba(0,0,0,0.8)); }
+  .video-author { font-size: 12px; color: #fff; font-weight: 600; }
+  .video-desc { font-size: 11px; color: #ccc; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .video-likes { font-size: 11px; color: #aaa; margin-top: 2px; }
+  .state-msg { text-align: center; padding: 60px 20px; color: #3a3a3a; font-size: 14px; }
+  .loading-dots { display: inline-flex; gap: 5px; }
+  .loading-dots span { width: 5px; height: 5px; background: #444; border-radius: 50%; animation: bounce 1.2s infinite; }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:scale(0.5);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">Tik<span>Tok</span></div>
+  <div class="search-box">
+    <span style="color:#666;font-size:15px;">&#128269;</span>
+    <input id="q" type="text" placeholder="검색" autocomplete="off" spellcheck="false" />
+  </div>
+  <div class="go-btn" id="goBtn">검색</div>
+</div>
+<div id="suggestBox"></div>
+<div id="label" class="section-label"></div>
+<div id="results"><div class="state-msg">검색어를 입력하세요</div></div>
+<script>
+  const input = document.getElementById('q');
+  const resultsEl = document.getElementById('results');
+  const labelEl = document.getElementById('label');
+  const suggestBox = document.getElementById('suggestBox');
+  let timer;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (!q) { suggestBox.innerHTML=''; return; }
+    timer = setTimeout(() => fetchSuggest(q), 300);
+  });
+  input.addEventListener('keydown', e => { if(e.key==='Enter') { suggestBox.innerHTML=''; search(input.value.trim()); } });
+  document.getElementById('goBtn').addEventListener('click', () => { suggestBox.innerHTML=''; search(input.value.trim()); });
+  async function fetchSuggest(q) {
+    try {
+      const r = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+      const data = await r.json();
+      const words = data.words || [];
+      if (!words.length) { suggestBox.innerHTML=''; return; }
+      suggestBox.innerHTML = words.map(w =>
+        `<div class="suggest-item" onclick="pick('${w.replace(/'/g,"\\'")}')">
+          <span style="color:#444;font-size:14px;">&#128269;</span>
+          <span style="flex:1;font-size:15px;color:#ddd;">${w.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),'<mark>$&</mark>')}</span>
+        </div>`
+      ).join('');
+    } catch { suggestBox.innerHTML=''; }
+  }
+  function pick(q) { input.value=q; suggestBox.innerHTML=''; search(q); }
+  async function search(q) {
+    if (!q) return;
+    labelEl.textContent='';
+    resultsEl.innerHTML=`<div class="state-msg"><div class="loading-dots"><span></span><span></span><span></span></div></div>`;
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const data = await r.json();
+      renderVideos(data.videos||[], q);
+    } catch { resultsEl.innerHTML=`<div class="state-msg">검색 결과를 불러올 수 없습니다</div>`; }
+  }
+  function renderVideos(videos, q) {
+    if (!videos.length) { labelEl.textContent=''; resultsEl.innerHTML=`<div class="state-msg">"${q}" 결과 없음</div>`; return; }
+    labelEl.textContent=`"${q}" 검색 결과`;
+    resultsEl.innerHTML=`<div class="videos">${videos.map(v=>`
+      <div class="video-card" onclick="window.open('${v.url}','_blank')">
+        <img src="${v.thumb}" loading="lazy" onerror="this.src='https://placehold.co/200x356/111/444?text=TikTok'"/>
+        <div class="video-info">
+          <div class="video-author">@${v.author}</div>
+          <div class="video-desc">${v.desc}</div>
+          <div class="video-likes">❤️ ${v.likes}</div>
+        </div>
+      </div>`).join('')}</div>`;
+  }
+  input.focus();
+</script>
+</body>
+</html>
